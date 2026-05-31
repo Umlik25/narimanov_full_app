@@ -1,0 +1,494 @@
+import { useCallback, useEffect, useState } from "react";
+import confetti from "canvas-confetti";
+import { AnimatePresence, motion } from "motion/react";
+import { Gift, Wifi, X } from "lucide-react";
+import { LoginScreen } from "./components/LoginScreen";
+import { SignUpScreen } from "./components/SignUpScreen";
+import { MapScreen } from "./components/MapScreen";
+import { ReportIssueScreen } from "./components/ReportIssueScreen";
+import { MyReportsScreen } from "./components/MyReportsScreen";
+import { UserReportDetails } from "./components/UserReportDetails";
+import { AIChatScreen } from "./components/AIChatScreen";
+import { ProfileScreen } from "./components/ProfileScreen";
+import { RewardsScreen } from "./components/RewardsScreen";
+import { WaterManagementScreen } from "./components/WaterManagementScreen";
+import { HamburgerMenu } from "./components/HamburgerMenu";
+import { ISSUE_PHOTOS, Issue } from "./components/mockData";
+import {
+  CurrentUserSnapshot,
+  IssueDraft,
+  createIssue,
+  fetchBackendSnapshot,
+  fetchCurrentUserSnapshot,
+  hasStoredAuthToken,
+  hydrateSession,
+  loginWithCredentials,
+  logout as clearAuthSession,
+  registerWithCredentials,
+  isBackendEnabled,
+} from "./api/backend";
+
+type Screen =
+  | 'login' | 'signup'
+  | 'user_map'
+  | 'report_issue' | 'my_reports' | 'user_report_details'
+  | 'ai_chat' | 'profile' | 'rewards' | 'water_management';
+
+const DEMO_REPORT_REWARD_POINTS = 50;
+const NEXT_REWARD_TARGET_POINTS = 800;
+
+export default function App() {
+  const [screen, setScreen] = useState<Screen>('login');
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [showGlobalMenu, setShowGlobalMenu] = useState(false);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [pendingReportPhoto, setPendingReportPhoto] = useState<File | null>(null);
+  const [currentUser, setCurrentUser] = useState<CurrentUserSnapshot>(() => ({
+    displayName: "Citizen User",
+    points: 0,
+    source: "backend",
+  }));
+  const [points, setPoints] = useState(0);
+  const [rewardCelebration, setRewardCelebration] = useState<{ id: number; points: number } | null>(null);
+  const [focusInternetReward, setFocusInternetReward] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(true);
+
+  const userName = currentUser.displayName;
+
+  const refreshBackendData = useCallback(async () => {
+    const snapshotPromise = fetchBackendSnapshot();
+    const userPromise = hasStoredAuthToken() ? fetchCurrentUserSnapshot() : Promise.resolve(null);
+    const [snapshot, userSnapshot] = await Promise.all([snapshotPromise, userPromise]);
+    setIssues(snapshot.issues);
+    if (userSnapshot) {
+      setCurrentUser(userSnapshot);
+      setPoints(userSnapshot.points);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [snapshot, sessionUser] = await Promise.all([
+          fetchBackendSnapshot(),
+          hydrateSession(),
+        ]);
+
+        if (cancelled) return;
+
+        setIssues(snapshot.issues);
+        if (sessionUser) {
+          setCurrentUser(sessionUser);
+          setPoints(sessionUser.points);
+          setScreen('user_map');
+        } else {
+          setCurrentUser({
+            displayName: "Citizen User",
+            points: 0,
+            source: "backend",
+          });
+          setPoints(0);
+        }
+      } finally {
+        if (!cancelled) setBootstrapping(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleLogout = () => {
+    clearAuthSession();
+    setSelectedIssue(null);
+    setShowGlobalMenu(false);
+    setPendingReportPhoto(null);
+    setCurrentUser({
+      displayName: "Citizen User",
+      points: 0,
+      source: "backend",
+    });
+    setPoints(0);
+    setScreen('login');
+  };
+
+  const handleViewIssueDetails = (issue: Issue) => {
+    setSelectedIssue(issue);
+    setScreen('user_report_details');
+  };
+
+  const handleNavigate = (s: string) => {
+    if (s === 'report_issue') setPendingReportPhoto(null);
+    setScreen(s as Screen);
+    setShowGlobalMenu(false);
+  };
+
+  const mapBack = () => {
+    setPendingReportPhoto(null);
+    setScreen('user_map');
+  };
+
+  const handleLogin = useCallback(async (username: string, password: string) => {
+    const user = await loginWithCredentials(username, password);
+    setCurrentUser(user);
+    setPoints(user.points);
+    setScreen('user_map');
+    refreshBackendData().catch(error => {
+      console.warn("Logged in successfully, but refreshing backend data failed.", error);
+    });
+  }, [refreshBackendData]);
+
+  const handleSignUp = useCallback(async (input: { username: string; password: string; email?: string | null; }) => {
+    const user = await registerWithCredentials(input);
+    setCurrentUser(user);
+    setPoints(user.points);
+    setScreen('user_map');
+    refreshBackendData().catch(error => {
+      console.warn("Signed up successfully, but refreshing backend data failed.", error);
+    });
+  }, [refreshBackendData]);
+
+  const handleStartReportWithPhoto = (file: File) => {
+    setPendingReportPhoto(file);
+    setScreen('report_issue');
+  };
+
+  const scheduleDemoApproval = useCallback((issueId: string) => {
+    window.setTimeout(() => {
+      const approvedAt = formatDemoDate(new Date());
+      setIssues((current) => current.map((issue) => issue.id === issueId
+        ? {
+            ...issue,
+            status: 'assigned',
+            backendStatus: 'assigned',
+            moderationStatus: 'accepted',
+            timeline: [
+              { time: approvedAt, action: 'Approved', by: 'City Operations' },
+              ...issue.timeline,
+            ],
+          }
+        : issue));
+      setSelectedIssue((current) => current?.id === issueId
+        ? {
+            ...current,
+            status: 'assigned',
+            backendStatus: 'assigned',
+            moderationStatus: 'accepted',
+            timeline: [
+              { time: approvedAt, action: 'Approved', by: 'City Operations' },
+              ...current.timeline,
+            ],
+          }
+        : current);
+      setPoints((current) => current + DEMO_REPORT_REWARD_POINTS);
+      setRewardCelebration({ id: Date.now(), points: DEMO_REPORT_REWARD_POINTS });
+    }, 4000);
+  }, []);
+
+  const handleRewardSpend = useCallback((points: number) => {
+    setPoints((current) => Math.max(0, current - points));
+  }, []);
+
+  const handleSubmitIssue = async (draft: IssueDraft) => {
+    if (!isBackendEnabled()) {
+      const optimisticIssue = createOptimisticIssue(draft);
+      setIssues(prev => [optimisticIssue, ...prev]);
+      setPendingReportPhoto(null);
+      setScreen('my_reports');
+      scheduleDemoApproval(optimisticIssue.id);
+      return;
+    }
+
+    const created = await createIssue(draft);
+    setIssues(prev => [created, ...prev.filter(item => item.backendId !== created.backendId)]);
+    setPendingReportPhoto(null);
+    setScreen('my_reports');
+    refreshBackendData().catch(error => {
+      console.warn('Issue created, but refreshing backend data failed.', error);
+    });
+  };
+
+  const renderMapShell = () => {
+    const isCityMap = screen === 'user_map';
+    const isRainMap = screen === 'water_management';
+
+    return (
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden", background: "#F4F8FF" }}>
+        <div
+          aria-hidden={!isCityMap}
+          style={{
+            inset: 0,
+            opacity: isCityMap ? 1 : 0,
+            pointerEvents: isCityMap ? "auto" : "none",
+            position: "absolute",
+            transition: "opacity 120ms ease",
+            visibility: isCityMap ? "visible" : "hidden",
+            zIndex: isCityMap ? 2 : 1,
+          }}
+        >
+          <MapScreen currentScreen="user_map" issues={issues} onNavigate={handleNavigate} onLogout={handleLogout} onStartReportWithPhoto={handleStartReportWithPhoto} onViewIssueDetails={handleViewIssueDetails} userName={userName} />
+        </div>
+
+        <div
+          aria-hidden={!isRainMap}
+          style={{
+            inset: 0,
+            opacity: isRainMap ? 1 : 0,
+            pointerEvents: isRainMap ? "auto" : "none",
+            position: "absolute",
+            transition: "opacity 120ms ease",
+            visibility: isRainMap ? "visible" : "hidden",
+            zIndex: isRainMap ? 2 : 1,
+          }}
+        >
+          <WaterManagementScreen onBack={mapBack} onMenu={() => setShowGlobalMenu(true)} />
+        </div>
+      </div>
+    );
+  };
+
+  const renderScreen = () => {
+    switch (screen) {
+      case 'login':
+        return <LoginScreen onLogin={handleLogin} onSignUp={() => setScreen('signup')} />;
+      case 'signup':
+        return <SignUpScreen onBack={() => setScreen('login')} onSignUp={handleSignUp} />;
+      case 'user_map':
+      case 'water_management':
+        return renderMapShell();
+      case 'report_issue':
+        return <ReportIssueScreen initialPhotoFile={pendingReportPhoto} onBack={mapBack} onSubmit={handleSubmitIssue} />;
+      case 'my_reports':
+        return <MyReportsScreen issues={issues} onBack={mapBack} onViewDetails={handleViewIssueDetails} onMenu={() => setShowGlobalMenu(true)} />;
+      case 'rewards':
+        return (
+          <RewardsScreen
+            autoOpenDataPack={focusInternetReward}
+            earnedPoints={points}
+            onAutoOpenHandled={() => setFocusInternetReward(false)}
+            onBack={mapBack}
+            onSpendPoints={handleRewardSpend}
+          />
+        );
+      case 'user_report_details':
+        return selectedIssue ? <UserReportDetails issue={selectedIssue} onBack={() => setScreen('my_reports')} /> : null;
+      case 'ai_chat':
+        return <AIChatScreen onBack={mapBack} />;
+      case 'profile':
+        return (
+          <ProfileScreen
+            onBack={mapBack}
+            onLogout={handleLogout}
+            points={points}
+            roleLabel={currentUser.role}
+            userName={userName}
+          />
+        );
+      default:
+        return <LoginScreen onLogin={handleLogin} onSignUp={() => setScreen('signup')} />;
+    }
+  };
+
+  return (
+    <div
+      className="size-full"
+      style={{
+        background: '#08122D',
+        fontFamily: 'Inter, sans-serif',
+        height: '100vh',
+        inset: 0,
+        overflow: 'hidden',
+        position: 'fixed',
+        width: '100vw',
+      }}
+    >
+      <div
+        className="relative"
+        style={{
+          background: '#08122D',
+          height: '100%',
+          overflow: 'hidden',
+          touchAction: 'manipulation',
+          width: '100%',
+        }}
+      >
+        {/* Screen content */}
+        <div className="absolute inset-0 overflow-hidden">
+          {bootstrapping && (
+            <div className="absolute inset-0 z-[60] flex items-center justify-center bg-[#08122D] text-white">
+              <div className="text-center" style={{ fontFamily: "Inter, sans-serif" }}>
+                <div className="text-sm font-semibold tracking-[0.16em] uppercase opacity-70">City Grind</div>
+                <div className="mt-3 text-lg font-bold">Restoring your session</div>
+              </div>
+            </div>
+          )}
+          {screen !== 'login' && screen !== 'signup' && renderMapShell()}
+          {(screen === 'login' || screen === 'signup') && renderScreen()}
+          {screen !== 'login' && screen !== 'signup' && screen !== 'user_map' && screen !== 'water_management' && (
+            <div style={{ position: "absolute", inset: 0, zIndex: 10 }}>
+              {renderScreen()}
+            </div>
+          )}
+        </div>
+
+        {/* Global overlay menu */}
+        <AnimatePresence>
+          {showGlobalMenu && (
+            <div className="absolute inset-0 z-50">
+              <HamburgerMenu
+                currentScreen={screen}
+                onNavigate={handleNavigate}
+                onClose={() => setShowGlobalMenu(false)}
+                onLogout={handleLogout}
+                userName={userName}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {rewardCelebration && (
+            <RewardCelebration
+              key={rewardCelebration.id}
+              points={rewardCelebration.points}
+              totalPoints={points}
+              onClose={() => setRewardCelebration(null)}
+              onRewards={() => {
+                setRewardCelebration(null);
+                setFocusInternetReward(true);
+                setScreen('rewards');
+              }}
+            />
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function createOptimisticIssue(draft: IssueDraft): Issue {
+  const createdAt = new Date();
+  const category = draft.category;
+  const lat = draft.latitude ?? 40.4093;
+  const lng = draft.longitude ?? 49.8671;
+
+  return {
+    id: `ISS-${createdAt.getTime()}`,
+    title: draft.title.trim(),
+    description: draft.description.trim(),
+    category,
+    priority: draft.priority || (category === 'flooding' ? 'critical' : category === 'road' || category === 'trash' ? 'high' : 'medium'),
+    status: 'in_progress',
+    backendStatus: 'in_progress',
+    moderationStatus: 'accepted',
+    isPublic: true,
+    rewardPoints: DEMO_REPORT_REWARD_POINTS,
+    location: draft.location || `Latitude ${lat}, Longitude ${lng}`,
+    lat,
+    lng,
+    reportedAt: formatDemoDate(createdAt),
+    reportedBy: 'Citizen Reporter',
+    source: 'user',
+    photo: draft.photoPreviewUrl || ISSUE_PHOTOS[0],
+    timeline: [
+      { time: formatDemoDate(createdAt), action: 'Issue submitted', by: 'Citizen Reporter' },
+      { time: formatDemoDate(createdAt), action: 'In progress', by: 'City Operations' },
+    ],
+  };
+}
+
+function formatDemoDate(date: Date) {
+  return date.toLocaleString("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).replace(",", "");
+}
+
+function RewardCelebration({
+  onClose,
+  onRewards,
+  points,
+  totalPoints,
+}: {
+  onClose: () => void;
+  onRewards: () => void;
+  points: number;
+  totalPoints: number;
+}) {
+  useEffect(() => {
+    const colors = ["#0B5CFF", "#7C3AED", "#16A34A", "#F97316", "#FDE047"];
+    confetti({ particleCount: 90, spread: 72, origin: { x: 0.5, y: 0.28 }, colors, zIndex: 1000, disableForReducedMotion: true });
+    window.setTimeout(() => {
+      confetti({ particleCount: 55, angle: 60, spread: 58, origin: { x: 0.08, y: 0.62 }, colors, zIndex: 1000, disableForReducedMotion: true });
+      confetti({ particleCount: 55, angle: 120, spread: 58, origin: { x: 0.92, y: 0.62 }, colors, zIndex: 1000, disableForReducedMotion: true });
+    }, 180);
+  }, []);
+
+  return (
+    <motion.div
+      className="absolute inset-0 z-[80] flex items-end justify-center bg-[#08122D]/35 px-5 pb-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="relative w-full max-w-md overflow-hidden rounded-[32px] bg-white p-5 shadow-2xl"
+        initial={{ y: 34, scale: 0.94 }}
+        animate={{ y: 0, scale: 1 }}
+        exit={{ y: 24, scale: 0.96 }}
+        transition={{ type: "spring", stiffness: 360, damping: 28 }}
+      >
+        <button
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#F3F6FF] text-[#08122D]"
+          onClick={onClose}
+          aria-label="Close reward"
+        >
+          <X size={17} />
+        </button>
+
+        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-[#EAF7EF] text-[#16A34A]">
+          <Gift size={31} />
+        </div>
+
+        <p className="mt-5 text-sm text-[#0B5CFF]" style={{ fontFamily: "Inter, sans-serif", fontWeight: 900 }}>
+          Report approved
+        </p>
+        <h2 className="mt-1 text-[30px] leading-tight text-[#08122D]" style={{ fontFamily: "Inter, sans-serif", fontWeight: 950 }}>
+          You earned +{points} points
+        </h2>
+        <p className="mt-3 text-sm leading-relaxed text-gray-500" style={{ fontFamily: "Inter, sans-serif" }}>
+          Thanks for reporting the broken bench. Your points total is now {totalPoints}, ready to spend on district rewards.
+        </p>
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <div className="rounded-3xl bg-[#F5F8FF] p-4">
+            <p className="text-[10px] uppercase tracking-[0.08em] text-gray-500" style={{ fontFamily: "Inter, sans-serif", fontWeight: 850 }}>Balance</p>
+            <p className="mt-1 text-2xl text-[#08122D]" style={{ fontFamily: "Inter, sans-serif", fontWeight: 950 }}>{totalPoints}</p>
+          </div>
+          <div className="rounded-3xl bg-[#F5F8FF] p-4">
+            <p className="text-[10px] uppercase tracking-[0.08em] text-gray-500" style={{ fontFamily: "Inter, sans-serif", fontWeight: 850 }}>Next reward</p>
+            <p className="mt-1 text-2xl text-[#08122D]" style={{ fontFamily: "Inter, sans-serif", fontWeight: 950 }}>
+              {Math.max(0, NEXT_REWARD_TARGET_POINTS - totalPoints)}
+            </p>
+          </div>
+        </div>
+
+        <button
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-3xl bg-[#0B5CFF] py-4 text-white shadow-lg shadow-blue-500/25"
+          onClick={onRewards}
+          style={{ fontFamily: "Inter, sans-serif", fontWeight: 900 }}
+        >
+          <Wifi size={20} />
+          Redeem points
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}

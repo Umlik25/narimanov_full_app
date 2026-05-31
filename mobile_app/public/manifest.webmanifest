@@ -1,0 +1,25 @@
+{
+  "name": "City Grind",
+  "short_name": "City Grind",
+  "description": "Mobile city operations, reporting, rewards, and analytics demo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08122D",
+  "theme_color": "#0B5CFF",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "700x700",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
