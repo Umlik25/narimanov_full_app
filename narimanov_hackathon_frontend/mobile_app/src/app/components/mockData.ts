@@ -54,11 +54,11 @@ export const mockMyIssues: Issue[] = [];
 export const mockAIDetections: AIDetection[] = [];
 
 export const STATUS_COLORS: Record<IssueStatus, string> = {
-  new: '#0B5CFF', ai_review: '#7C3AED', assigned: '#F97316',
+  new: '#0B5CFF', ai_review: '#7C3AED', assigned: '#16A34A',
   in_progress: '#F97316', resolved: '#16A34A', overdue: '#E53935', rejected: '#9CA3AF',
 };
 export const STATUS_LABELS: Record<IssueStatus, string> = {
-  new: 'New', ai_review: 'Review', assigned: 'Accepted',
+  new: 'New', ai_review: 'Review', assigned: 'Approved',
   in_progress: 'In Progress', resolved: 'Resolved', overdue: 'Overdue', rejected: 'Rejected',
 };
 export const PRIORITY_COLORS: Record<IssuePriority, string> = {

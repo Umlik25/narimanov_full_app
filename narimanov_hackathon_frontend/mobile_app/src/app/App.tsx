@@ -87,11 +87,36 @@ export default function App() {
     setScreen('report_issue');
   };
 
-  const scheduleDemoReward = useCallback(() => {
+  const scheduleDemoApproval = useCallback((issueId: string) => {
     window.setTimeout(() => {
+      const approvedAt = formatDemoDate(new Date());
+      setIssues((current) => current.map((issue) => issue.id === issueId
+        ? {
+            ...issue,
+            status: 'assigned',
+            backendStatus: 'assigned',
+            moderationStatus: 'accepted',
+            timeline: [
+              { time: approvedAt, action: 'Approved', by: 'City Operations' },
+              ...issue.timeline,
+            ],
+          }
+        : issue));
+      setSelectedIssue((current) => current?.id === issueId
+        ? {
+            ...current,
+            status: 'assigned',
+            backendStatus: 'assigned',
+            moderationStatus: 'accepted',
+            timeline: [
+              { time: approvedAt, action: 'Approved', by: 'City Operations' },
+              ...current.timeline,
+            ],
+          }
+        : current);
       setRewardPoints((current) => current + DEMO_REPORT_REWARD_POINTS);
       setRewardCelebration({ id: Date.now(), points: DEMO_REPORT_REWARD_POINTS });
-    }, 1000);
+    }, 4000);
   }, []);
 
   const handleRewardSpend = useCallback((points: number) => {
@@ -103,7 +128,7 @@ export default function App() {
     setIssues(prev => [optimisticIssue, ...prev]);
     setPendingReportPhoto(null);
     setScreen('my_reports');
-    scheduleDemoReward();
+    scheduleDemoApproval(optimisticIssue.id);
 
     if (dataSource !== 'backend') {
       return;
@@ -115,15 +140,9 @@ export default function App() {
           ? { ...localIssuePhotos, [created.backendId]: draft.photoPreviewUrl }
           : localIssuePhotos;
         if (nextLocalPhotos !== localIssuePhotos) setLocalIssuePhotos(nextLocalPhotos);
-        setIssues(prev => prev.map(item => item.id === optimisticIssue.id ? applyLocalIssuePhotos([created], nextLocalPhotos)[0] : item));
-        return fetchBackendSnapshot()
-          .then(snapshot => {
-            const mergedIssues = snapshot.issues.some(issue => issue.backendId === created.backendId)
-              ? snapshot.issues
-              : [created, ...snapshot.issues];
-            setIssues(applyLocalIssuePhotos(mergedIssues, nextLocalPhotos));
-            setDataSource(snapshot.source);
-          });
+        setIssues(prev => prev.map(item => item.id === optimisticIssue.id
+          ? { ...item, backendId: created.backendId }
+          : item));
       })
       .catch(error => {
         console.warn('Issue submission failed, keeping optimistic demo report visible.', error);
@@ -362,7 +381,7 @@ function RewardCelebration({
         </div>
 
         <p className="mt-5 text-sm text-[#0B5CFF]" style={{ fontFamily: "Inter, sans-serif", fontWeight: 900 }}>
-          Report accepted
+          Report approved
         </p>
         <h2 className="mt-1 text-[30px] leading-tight text-[#08122D]" style={{ fontFamily: "Inter, sans-serif", fontWeight: 950 }}>
           You earned +{points} bonuses
