@@ -98,7 +98,7 @@ export function RewardsScreen({ onBack }: { onBack: () => void }) {
   const [activity, setActivity] = useState<Activity[]>(initialActivity);
   const [view, setView] = useState<"all" | "available" | "claimed">("all");
 
-  const earnedPoints = 1850;
+  const earnedPoints = 750;
   const spentCoupons = redeemed.reduce((total, item) => total + item.reward.cost, 0);
   const coupons = Math.max(0, Math.floor(earnedPoints / 100) - spentCoupons);
   const pointsToNextCoupon = 100 - (earnedPoints % 100 || 100);
