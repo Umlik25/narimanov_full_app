@@ -192,23 +192,24 @@ export default function App() {
     setPoints((current) => Math.max(0, current - points));
   }, []);
 
-  const handleSubmitIssue = async (draft: IssueDraft) => {
-    if (!isBackendEnabled()) {
-      const optimisticIssue = createOptimisticIssue(draft);
-      setIssues(prev => [optimisticIssue, ...prev]);
-      setPendingReportPhoto(null);
-      setScreen('my_reports');
-      scheduleDemoApproval(optimisticIssue.id);
-      return;
-    }
-
-    const created = await createIssue(draft);
-    setIssues(prev => [created, ...prev.filter(item => item.backendId !== created.backendId)]);
+  const handleSubmitIssue = (draft: IssueDraft) => {
+    const optimisticIssue = createOptimisticIssue(draft);
+    setIssues(prev => [optimisticIssue, ...prev]);
     setPendingReportPhoto(null);
     setScreen('my_reports');
-    refreshBackendData().catch(error => {
-      console.warn('Issue created, but refreshing backend data failed.', error);
-    });
+    scheduleDemoApproval(optimisticIssue.id);
+
+    if (!isBackendEnabled()) return;
+
+    createIssue(draft)
+      .then((created) => {
+        setIssues(prev => prev.map(item => item.id === optimisticIssue.id
+          ? { ...item, backendId: created.backendId }
+          : item));
+      })
+      .catch(error => {
+        console.warn('Issue submission failed, keeping optimistic demo report visible.', error);
+      });
   };
 
   const renderMapShell = () => {
