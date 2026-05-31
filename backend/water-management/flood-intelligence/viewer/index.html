@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AquaWatch — Narimanov Flood Intelligence</title>
+<link href="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@4.5.0/dist/maplibre-gl.js"></script>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#121a2e; --panel2:#0e1526; --line:#22304d;
+    --text:#e7ecf5; --muted:#8ea0bf; --accent:#33c4ff;
+    --low:#2ecc71; --moderate:#f1c40f; --high:#e67e22; --critical:#e74c3c;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  #app{display:flex;height:100vh;overflow:hidden}
+  #map{flex:1;height:100%}
+  #side{width:380px;min-width:380px;height:100%;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
+  header{padding:18px 18px 14px;border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:18px;letter-spacing:.3px}
+  header .sub{color:var(--muted);font-size:12px;margin-top:4px}
+  header .badge{display:inline-block;margin-top:8px;font-size:11px;color:#0b1020;background:var(--accent);padding:2px 8px;border-radius:999px;font-weight:600}
+  .scroll{overflow-y:auto;padding:16px 18px;flex:1}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .toggles label{display:flex;align-items:center;gap:8px;font-size:13px;margin:7px 0;cursor:pointer}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .readout{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px}
+  .readout .big{font-size:30px;font-weight:700}
+  .readout .unit{color:var(--muted);font-size:13px}
+  .presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .presets button{flex:1;min-width:70px;background:#16203a;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 6px;font-size:12px;cursor:pointer;transition:.15s}
+  .presets button:hover{border-color:var(--accent)}
+  .days{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-top:4px}
+  .day{flex:0 0 auto;min-width:60px;background:#16203a;border:1px solid var(--line);border-radius:9px;padding:7px 8px;cursor:pointer;text-align:center;transition:.15s}
+  .day:hover{border-color:var(--accent)}
+  .day.on{border-color:var(--accent);background:#1c2b4d;box-shadow:0 0 0 1px var(--accent) inset}
+  .day .dl{font-size:11px;font-weight:700}
+  .day .dd{font-size:10px;color:var(--muted);margin-top:1px}
+  .day .dp{font-size:12px;font-weight:700;margin-top:4px}
+  .day.storm .dp{color:#ff9b8f}
+  .day .du{font-size:9px;color:var(--muted)}
+  .src{font-size:11px;color:var(--muted);margin-top:8px}
+  .src.what-if{color:#ffe27a}
+  .statline{display:flex;justify-content:space-between;font-size:13px;margin:5px 0;color:var(--muted)}
+  .statline b{color:var(--text)}
+  .zone{border-left:3px solid var(--high);background:#0f1830;border-radius:8px;padding:9px 11px;margin-bottom:8px;cursor:pointer;animation:pop .2s ease}
+  .zone.critical{border-color:var(--critical)} .zone.severe{border-color:var(--high)} .zone.flooding{border-color:var(--moderate)}
+  .zone .top{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:600}
+  .zone .top .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .zone .sev{font-size:10px;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;border-radius:999px;background:#1d2b49;flex:none}
+  .zone.critical .sev{background:rgba(231,76,60,.18);color:#ff9b8f}
+  .zone.severe .sev{background:rgba(230,126,34,.18);color:#ffbf86}
+  .zone.flooding .sev{background:rgba(241,196,15,.16);color:#ffe27a}
+  .zone .meta{font-size:12px;color:var(--muted);margin-top:4px}
+  .zone .meta b{color:var(--text)}
+  @keyframes pop{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:12px}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px}
+  .legend .li{display:flex;align-items:center;gap:7px}
+  .legend .sw{width:13px;height:13px;border-radius:3px;flex:none}
+  .maplibregl-popup-content{background:#121a2e;color:var(--text);border:1px solid var(--line);border-radius:12px;font-size:13px;max-width:280px}
+  .maplibregl-popup-content h3{margin:0 0 6px;font-size:14px}
+  .pp .bd{display:flex;justify-content:space-between;color:var(--muted);margin:3px 0}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <header>
+      <h1>AquaWatch</h1>
+      <div class="sub">Narimanov District · Flood Intelligence Layer</div>
+      <span class="badge">OpenWave module</span>
+    </header>
+    <div class="scroll">
+
+      <div class="card">
+        <h2>Forecast day</h2>
+        <div id="days" class="days"><span class="empty" style="padding:6px">⏳ Loading live forecast…</span></div>
+        <div id="src" class="src"></div>
+      </div>
+
+      <div class="card">
+        <h2>Rainfall intensity</h2>
+        <div class="readout"><span class="big" id="rainVal">0</span><span class="unit">mm/hour · peak</span></div>
+        <input type="range" id="rain" min="0" max="90" step="0.1" value="0" />
+        <div class="presets">
+          <button data-v="0">Calm</button>
+          <button data-v="10">Drizzle 10</button>
+          <button data-v="35">Storm 35</button>
+          <button data-v="90">April 2026 · 90</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Status</h2>
+        <div class="statline"><span>Active flood zones</span><b id="stZones">0</b></div>
+        <div class="statline"><span>Flooding catchments</span><b id="stCatch">0</b></div>
+        <div class="statline"><span>Peak runoff</span><b id="stRunoff">0 m³/s</b></div>
+      </div>
+
+      <div class="card">
+        <h2>Flood zones <span id="zCount" style="color:var(--accent)"></span></h2>
+        <div id="zones"><div class="empty">No rain — district is calm.</div></div>
+      </div>
+
+      <div class="card toggles">
+        <h2>Map layers</h2>
+        <label><input type="checkbox" id="tgHeat" checked> Flood heatmap (live rain)</label>
+        <label><input type="checkbox" id="tgInherent"> Inherent risk (dry-day vulnerability)</label>
+        <label><input type="checkbox" id="tgZones" checked> Flood-zone markers</label>
+        <label><input type="checkbox" id="tgFlow"> Flow lines (D8)</label>
+      </div>
+
+      <div class="card">
+        <h2>Legend</h2>
+        <div class="legend">
+          <div class="li"><span class="sw" style="background:#7d0d0d"></span> Flooding (severe)</div>
+          <div class="li"><span class="sw" style="background:var(--critical)"></span> Flooding</div>
+          <div class="li"><span class="sw" style="background:var(--high)"></span> Imminent</div>
+          <div class="li"><span class="sw" style="background:var(--moderate)"></span> Building up</div>
+          <div class="li"><span class="sw" style="background:var(--low)"></span> Calm</div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+  <div id="map"></div>
+</div>
+
+<script>
+const API = location.origin + "/api";
+// Model constants mirrored from service/config.py + dispatch.py so the slider can
+// recompute instantly client-side (no network round-trip while dragging).
+const DESIGN_STORM = 45.0, STORM_MM_H = 20.0;
+function activation(risk){            // rainfall at which a cell starts flooding
+  if(risk >= 75) return 12;
+  if(risk <= 55) return 30;
+  return 30 - (risk - 55) * 0.9;
+}
+function stressColor(s){
+  if(s >= 1.6) return "#7d0d0d";
+  if(s >= 1.2) return "#c0392b";
+  if(s >= 1.0) return "#ff5a3c";
+  if(s >= 0.8) return "#e67e22";
+  if(s >= 0.5) return "#f1c40f";
+  if(s >= 0.25) return "#7fc97f";
+  return "#2ecc71";
+}
+function stressOpacity(s){ return Math.min(0.85, 0.4 + 0.5 * s); }
+function inherentColor(r){
+  if(r >= 65) return "#e74c3c";
+  if(r >= 52) return "#e67e22";
+  if(r >= 42) return "#f1c40f";
+  if(r >= 32) return "#7fc97f";
+  return "#2ecc71";
+}
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+    sources: { carto: {
+      type: "raster",
+      tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+              "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+      tileSize: 256, attribution: "© OpenStreetMap © CARTO" } },
+    layers: [{id:"bg", type:"raster", source:"carto"}]
+  },
+  center: [49.8805, 40.4178], zoom: 13
+});
+map.addControl(new maplibregl.NavigationControl(), "bottom-right");
+
+let CELLS = [];          // catchment features
+let CELL_INDEX = {};     // "col_row" -> feature
+
+map.on("load", async () => {
+  const [district, catchments, flow] = await Promise.all([
+    fetch(`${API}/district`).then(r=>r.json()),
+    fetch(`${API}/layers/catchments`).then(r=>r.json()),
+    fetch(`${API}/layers/flow`).then(r=>r.json())
+  ]);
+
+  map.addSource("district", {type:"geojson", data:district});
+  map.addLayer({id:"district-line", type:"line", source:"district",
+    paint:{"line-color":"#33c4ff","line-width":2.5,"line-opacity":.9}});
+
+  catchments.features.forEach(f=>{
+    f.properties.color = stressColor(0);
+    f.properties.op = stressOpacity(0);
+    CELL_INDEX[`${f.properties.col}_${f.properties.row}`] = f;
+  });
+  CELLS = catchments.features;
+  window._catch = catchments;
+  map.addSource("catchments", {type:"geojson", data:catchments});
+  map.addLayer({id:"risk-fill", type:"fill", source:"catchments",
+    paint:{"fill-color":["get","color"],"fill-opacity":["get","op"],
+           "fill-opacity-transition":{duration:200}}}, "district-line");
+  map.addLayer({id:"risk-line", type:"line", source:"catchments",
+    paint:{"line-color":"#000","line-opacity":.10,"line-width":.4}}, "district-line");
+
+  map.addSource("flow", {type:"geojson", data:flow});
+  map.addLayer({id:"flow-line", type:"line", source:"flow",
+    layout:{visibility:"none"},
+    paint:{"line-color":"#4fb8ff",
+      "line-width":["interpolate",["linear"],["get","accum_ha"],10,1.5,400,7],
+      "line-opacity":.65}});
+
+  // Dynamic flood-zone markers (populated each frame).
+  map.addSource("zones", {type:"geojson", data:{type:"FeatureCollection",features:[]}});
+  map.addLayer({id:"zone-halo", type:"circle", source:"zones",
+    paint:{"circle-radius":18,"circle-color":["get","color"],"circle-opacity":0.25,"circle-blur":0.6}});
+  map.addLayer({id:"zone-pt", type:"circle", source:"zones",
+    paint:{"circle-radius":8,"circle-color":["get","color"],"circle-stroke-color":"#fff","circle-stroke-width":1.5}});
+  map.addLayer({id:"zone-label", type:"symbol", source:"zones",
+    layout:{"text-field":["to-string",["get","rank"]],"text-size":11,"text-font":["Open Sans Bold"]},
+    paint:{"text-color":"#fff"}});
+
+  bindUI();
+  loadLiveForecast();
+});
+
+// ---------- live forecast (real Open-Meteo, day by day) ----------
+let DAYS = [];          // per-day forecast from the API
+let selDay = -1;        // index of the day currently being simulated (-1 = manual)
+async function loadLiveForecast(){
+  const daysEl = document.getElementById("days");
+  const srcEl = document.getElementById("src");
+  try{
+    const fc = await fetch(`${API}/forecast`).then(r=>r.json());
+    DAYS = fc.days || [];
+    if(fc.source === "open-meteo" && DAYS.length){
+      renderDays();
+      selectDay(0);       // default: simulate today's real forecast
+    }else{
+      throw new Error(fc.error || "no live data");
+    }
+  }catch(e){
+    daysEl.innerHTML = `<span class="empty" style="padding:6px">⚠️ Live forecast unavailable — use the slider</span>`;
+    srcEl.textContent = "";
+    compute(0);
+  }
+}
+
+function renderDays(){
+  const daysEl = document.getElementById("days");
+  daysEl.innerHTML = DAYS.map((d,i)=>`
+    <div class="day${d.storm?" storm":""}" data-i="${i}">
+      <div class="dl">${d.label}</div>
+      <div class="dd">${d.short}</div>
+      <div class="dp">${d.peak_intensity_mm_h}</div>
+      <div class="du">mm/h</div>
+    </div>`).join("");
+  daysEl.querySelectorAll(".day").forEach(el=>
+    el.addEventListener("click", ()=>selectDay(+el.dataset.i)));
+}
+
+function selectDay(i){
+  selDay = i;
+  const d = DAYS[i];
+  document.querySelectorAll("#days .day").forEach((el,j)=>
+    el.classList.toggle("on", j===i));
+  document.getElementById("src").classList.remove("what-if");
+  const peakTxt = d.peak_intensity_mm_h>0
+    ? `peak ${d.peak_intensity_mm_h} mm/h at ${d.peak_time} · ${d.total_mm} mm total`
+    : `dry — ${d.total_mm} mm expected`;
+  document.getElementById("src").innerHTML =
+    `🌦️ Open-Meteo live · <b>${d.label} ${d.short}</b>: ${peakTxt}`;
+  const rain = document.getElementById("rain");
+  const v = Math.min(90, d.peak_intensity_mm_h || 0);  // exact forecast peak, no rounding
+  rain.value = v;
+  compute(v);
+}
+
+// Show whole numbers cleanly, fractional rain to one decimal.
+function fmt(v){ return Number.isInteger(v) ? String(v) : v.toFixed(1); }
+
+// ---------- UI ----------
+function bindUI(){
+  const rain = document.getElementById("rain");
+  rain.addEventListener("input", ()=>{ markWhatIf(); scheduleCompute(+rain.value); });
+  document.querySelectorAll(".presets button").forEach(b=>{
+    b.addEventListener("click", ()=>{rain.value=b.dataset.v; markWhatIf(); scheduleCompute(+b.dataset.v);});
+  });
+  document.getElementById("tgHeat").addEventListener("change", e=>
+    ["risk-fill","risk-line"].forEach(l=>map.setLayoutProperty(l,"visibility",e.target.checked?"visible":"none")));
+  document.getElementById("tgInherent").addEventListener("change", ()=>compute(curV));
+  document.getElementById("tgZones").addEventListener("change", e=>
+    ["zone-pt","zone-halo","zone-label"].forEach(l=>map.setLayoutProperty(l,"visibility",e.target.checked?"visible":"none")));
+  document.getElementById("tgFlow").addEventListener("change", e=>
+    map.setLayoutProperty("flow-line","visibility",e.target.checked?"visible":"none"));
+}
+
+// Manual slider/preset use = a "what-if" override, no longer a real forecast day.
+function markWhatIf(){
+  if(selDay === -1) return;
+  selDay = -1;
+  document.querySelectorAll("#days .day").forEach(el=>el.classList.remove("on"));
+  const src = document.getElementById("src");
+  src.classList.add("what-if");
+  src.innerHTML = "✏️ Manual what-if scenario — pick a day above for the live forecast";
+}
+
+// Throttle compute to one run per animation frame -> smooth while dragging.
+let curV = 0, pendingV = null, rafPending = false;
+function scheduleCompute(v){
+  document.getElementById("rainVal").textContent = fmt(v);
+  pendingV = v;
+  if(rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(()=>{ rafPending = false; compute(pendingV); });
+}
+
+// ---------- the model, client-side ----------
+function compute(v){
+  curV = v;
+  document.getElementById("rainVal").textContent = fmt(v);
+  const inherent = document.getElementById("tgInherent").checked;
+
+  let flooding = 0, peak = 0;
+  for(const f of CELLS){
+    const p = f.properties;
+    const act = activation(p.risk);
+    const stress = act > 0 ? v / act : 0;
+    const runoff = p.required_capacity_m3s * v / DESIGN_STORM;
+    p.stress = stress;
+    p.flooded = v >= act;
+    p.runoff = runoff;
+    if(p.flooded) flooding++;
+    if(runoff > peak) peak = runoff;
+    p.color = inherent ? inherentColor(p.risk) : stressColor(stress);
+    p.op = inherent ? 0.5 : stressOpacity(stress);
+  }
+  map.getSource("catchments").setData(window._catch);
+
+  const zones = buildZones();
+  renderZones(zones);
+
+  document.getElementById("stZones").textContent = zones.length;
+  document.getElementById("stCatch").textContent = flooding;
+  document.getElementById("stRunoff").textContent = peak.toFixed(2)+" m³/s";
+}
+
+// Flood zones = the worst local water-collection points among currently-flooding
+// cells, with spatial spacing (non-maximum suppression). Ranked by predicted
+// runoff. This stays multi-zone at any rain level (unlike one merged blob) and
+// each zone is a real, distinct, named location.
+const ZONE_SPACING = 2;   // cells (~400 m) minimum gap between zone centres
+const MAX_ZONES = 12;
+function buildZones(){
+  const flooded = CELLS.filter(f=>f.properties.flooded)
+                       .sort((a,b)=>b.properties.runoff - a.properties.runoff);
+  const picked = [];
+  for(const f of flooded){
+    const p = f.properties;
+    const tooClose = picked.some(s =>
+      Math.abs(s.properties.col - p.col) <= ZONE_SPACING &&
+      Math.abs(s.properties.row - p.row) <= ZONE_SPACING);
+    if(tooClose) continue;
+    picked.push(f);
+    if(picked.length >= MAX_ZONES) break;
+  }
+  return picked.map((f,i)=>{
+    const p = f.properties;
+    return {worst:f, rank:i+1, name:p.street || "Unnamed area",
+      runoff:+p.runoff.toFixed(2), maxStress:p.stress,
+      imperv:Math.round(p.imperviousness*100), upstream:p.upstream_area_ha,
+      severity: p.stress>=1.6?"critical":(p.stress>=1.2?"severe":"flooding")};
+  });
+}
+
+function sevColor(sev){ return sev==="critical"?"#7d0d0d":(sev==="severe"?"#e67e22":"#e74c3c"); }
+
+function renderZones(zones){
+  // markers
+  const fc = {type:"FeatureCollection", features: zones.map(z=>{
+    const coords = polyCentroid(z.worst.geometry.coordinates[0]);
+    return {type:"Feature",
+      properties:{rank:z.rank, name:z.name, color:sevColor(z.severity),
+                  runoff:z.runoff, imperv:z.imperv, upstream:z.upstream},
+      geometry:{type:"Point", coordinates:coords}};
+  })};
+  map.getSource("zones").setData(fc);
+
+  // sidebar
+  const wrap = document.getElementById("zones");
+  document.getElementById("zCount").textContent = zones.length ? `(${zones.length})` : "";
+  if(!zones.length){ wrap.innerHTML = `<div class="empty">No rain — district is calm.</div>`; return; }
+  wrap.innerHTML = zones.map(z=>`
+    <div class="zone ${z.severity}">
+      <div class="top"><span class="nm">#${z.rank} · ${z.name}</span><span class="sev">${z.severity}</span></div>
+      <div class="meta">💧 runoff <b>${z.runoff} m³/s</b> · ${z.imperv}% sealed · ${z.upstream} ha upstream</div>
+    </div>`).join("");
+}
+
+function polyCentroid(ring){
+  let x=0,y=0; const n=ring.length-1;
+  for(let i=0;i<n;i++){ x+=ring[i][0]; y+=ring[i][1]; }
+  return [x/n, y/n];
+}
+
+// Cell + zone popups (no complaints; real physical drivers only).
+map.on("click", "risk-fill", e=>{
+  const p = e.features[0].properties;
+  new maplibregl.Popup({offset:6}).setLngLat(e.lngLat).setHTML(`<div class="pp">
+    <h3>${p.street || "Unnamed area"}</h3>
+    <div class="bd"><span>Inherent risk</span><b>${p.risk}</b></div>
+    <div class="bd"><span>Impervious surface</span><span>${Math.round(p.imperviousness*100)}%</span></div>
+    <div class="bd"><span>Upstream catchment</span><span>${p.upstream_area_ha} ha</span></div>
+    <div class="bd"><span>Required capacity</span><b>${p.required_capacity_m3s} m³/s</b></div>
+  </div>`).addTo(map);
+});
+["zone-pt","zone-label"].forEach(id=>{
+  map.on("click", id, e=>{
+    const p = e.features[0].properties;
+    new maplibregl.Popup({offset:12}).setLngLat(e.features[0].geometry.coordinates).setHTML(`<div class="pp">
+      <h3>#${p.rank} · ${p.name}</h3>
+      <div class="bd"><span>Predicted runoff</span><b>${p.runoff} m³/s</b></div>
+      <div class="bd"><span>Impervious surface</span><span>${p.imperv}%</span></div>
+      <div class="bd"><span>Upstream catchment</span><span>${p.upstream} ha</span></div>
+    </div>`).addTo(map);
+  });
+  map.on("mouseenter", id, ()=>map.getCanvas().style.cursor="pointer");
+  map.on("mouseleave", id, ()=>map.getCanvas().style.cursor="");
+});
+</script>
+</body>
+</html>

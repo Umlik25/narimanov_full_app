@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "City Grind",
+    "slug": "city-grind-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/city-grind-logo.png",
+    "scheme": "citygrind",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "az.narimanov.ops.mobile",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "City Grind uses the camera so users can attach issue photos.",
+        "NSPhotoLibraryUsageDescription": "City Grind uses the photo library so users can upload issue photos.",
+        "NSLocationWhenInUseUsageDescription": "City Grind uses your location to place reports on the district map."
+      }
+    },
+    "android": {
+      "package": "az.narimanov.ops.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/city-grind-logo.png",
+        "backgroundColor": "#F5F7FB"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "01b0a372-8a36-4976-8f70-5b671852d5f3"
+      }
+    }
+  }
+}

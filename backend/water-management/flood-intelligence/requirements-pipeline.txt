@@ -1,0 +1,12 @@
+# OPTIONAL — only needed to re-derive processed layers from real open datasets offline.
+# The runtime service never imports these. Deliberately lightweight: we decode AWS
+# Terrarium terrain PNG tiles and process OSM vector data without GDAL, so install is
+# fast and reliable on macOS.
+Pillow>=10.0      # decode Terrarium DEM PNG tiles
+numpy>=1.26       # array math for the DEM grid
+
+# Not required by our pipeline, listed for reference if you swap in heavier sources:
+# rasterio>=1.3
+# geopandas>=0.14
+# shapely>=2.0
+# earthengine-api   # Dynamic World / Sentinel access (needs Google EE account)
