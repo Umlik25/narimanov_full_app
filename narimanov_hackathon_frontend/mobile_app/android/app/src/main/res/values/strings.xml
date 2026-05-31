@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">City Grind</string>
-    <string name="title_activity_main">City Grind</string>
-    <string name="package_name">az.narimanov.ops</string>
-    <string name="custom_url_scheme">az.narimanov.ops</string>
-</resources>
