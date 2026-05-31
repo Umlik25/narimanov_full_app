@@ -13,7 +13,7 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { RewardsScreen } from "./components/RewardsScreen";
 import { WaterManagementScreen } from "./components/WaterManagementScreen";
 import { HamburgerMenu } from "./components/HamburgerMenu";
-import { Issue } from "./components/mockData";
+import { ISSUE_PHOTOS, Issue } from "./components/mockData";
 import {
   IssueDraft,
   createIssue,
@@ -94,37 +94,40 @@ export default function App() {
     }, 1000);
   }, []);
 
-  const handleSubmitIssue = async (draft: IssueDraft) => {
-    if (dataSource !== 'backend') {
-      setPendingReportPhoto(null);
-      setScreen('my_reports');
-      scheduleDemoReward();
-      return;
-    }
+  const handleRewardSpend = useCallback((points: number) => {
+    setRewardPoints((current) => Math.max(0, current - points));
+  }, []);
 
-    try {
-      const created = await createIssue(draft);
-      const nextLocalPhotos = created.backendId && draft.photoPreviewUrl
-        ? { ...localIssuePhotos, [created.backendId]: draft.photoPreviewUrl }
-        : localIssuePhotos;
-      if (nextLocalPhotos !== localIssuePhotos) setLocalIssuePhotos(nextLocalPhotos);
-      setIssues(prev => applyLocalIssuePhotos([created, ...prev], nextLocalPhotos));
-      setPendingReportPhoto(null);
-      setScreen('my_reports');
-      scheduleDemoReward();
-      fetchBackendSnapshot()
-        .then(snapshot => {
-          setIssues(applyLocalIssuePhotos(snapshot.issues, nextLocalPhotos));
-          setDataSource(snapshot.source);
-        })
-        .catch(error => console.warn('Issue list refresh failed after submit.', error));
-      return;
-    } catch (error) {
-      console.warn('Issue submission failed, keeping demo flow available.', error);
-    }
+  const handleSubmitIssue = (draft: IssueDraft) => {
+    const optimisticIssue = createOptimisticIssue(draft);
+    setIssues(prev => [optimisticIssue, ...prev]);
     setPendingReportPhoto(null);
     setScreen('my_reports');
     scheduleDemoReward();
+
+    if (dataSource !== 'backend') {
+      return;
+    }
+
+    createIssue(draft)
+      .then((created) => {
+        const nextLocalPhotos = created.backendId && draft.photoPreviewUrl
+          ? { ...localIssuePhotos, [created.backendId]: draft.photoPreviewUrl }
+          : localIssuePhotos;
+        if (nextLocalPhotos !== localIssuePhotos) setLocalIssuePhotos(nextLocalPhotos);
+        setIssues(prev => prev.map(item => item.id === optimisticIssue.id ? applyLocalIssuePhotos([created], nextLocalPhotos)[0] : item));
+        return fetchBackendSnapshot()
+          .then(snapshot => {
+            const mergedIssues = snapshot.issues.some(issue => issue.backendId === created.backendId)
+              ? snapshot.issues
+              : [created, ...snapshot.issues];
+            setIssues(applyLocalIssuePhotos(mergedIssues, nextLocalPhotos));
+            setDataSource(snapshot.source);
+          });
+      })
+      .catch(error => {
+        console.warn('Issue submission failed, keeping optimistic demo report visible.', error);
+      });
   };
 
   const renderMapShell = () => {
@@ -187,6 +190,7 @@ export default function App() {
             earnedPoints={rewardPoints}
             onAutoOpenHandled={() => setFocusInternetReward(false)}
             onBack={mapBack}
+            onSpendPoints={handleRewardSpend}
           />
         );
       case 'user_report_details':
@@ -267,6 +271,48 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+function createOptimisticIssue(draft: IssueDraft): Issue {
+  const createdAt = new Date();
+  const category = draft.category;
+  const lat = draft.latitude ?? 40.4093;
+  const lng = draft.longitude ?? 49.8671;
+
+  return {
+    id: `ISS-${createdAt.getTime()}`,
+    title: draft.title.trim(),
+    description: draft.description.trim(),
+    category,
+    priority: draft.priority || (category === 'flooding' ? 'critical' : category === 'road' || category === 'trash' ? 'high' : 'medium'),
+    status: 'in_progress',
+    backendStatus: 'in_progress',
+    moderationStatus: 'accepted',
+    isPublic: true,
+    rewardPoints: DEMO_REPORT_REWARD_POINTS,
+    location: draft.location || `Latitude ${lat}, Longitude ${lng}`,
+    lat,
+    lng,
+    reportedAt: formatDemoDate(createdAt),
+    reportedBy: 'Citizen Reporter',
+    source: 'user',
+    photo: draft.photoPreviewUrl || ISSUE_PHOTOS[0],
+    timeline: [
+      { time: formatDemoDate(createdAt), action: 'Issue submitted', by: 'Citizen Reporter' },
+      { time: formatDemoDate(createdAt), action: 'In progress', by: 'City Operations' },
+    ],
+  };
+}
+
+function formatDemoDate(date: Date) {
+  return date.toLocaleString("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).replace(",", "");
 }
 
 function RewardCelebration({

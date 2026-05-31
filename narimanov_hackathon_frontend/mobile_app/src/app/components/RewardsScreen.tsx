@@ -97,12 +97,14 @@ export function RewardsScreen({
   earnedPoints = 750,
   onAutoOpenHandled,
   onBack,
+  onSpendPoints,
 }: {
   autoOpenDataPack?: boolean;
   demoAwardEarned?: boolean;
   earnedPoints?: number;
   onAutoOpenHandled?: () => void;
   onBack: () => void;
+  onSpendPoints?: (points: number) => void;
 }) {
   const [showHelp, setShowHelp] = useState(false);
   const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
@@ -113,8 +115,7 @@ export function RewardsScreen({
   ]);
   const [view, setView] = useState<"all" | "available" | "claimed">("all");
 
-  const spentCoupons = redeemed.reduce((total, item) => total + item.reward.cost, 0);
-  const coupons = Math.max(0, Math.floor(earnedPoints / 100) - spentCoupons);
+  const coupons = Math.max(0, Math.floor(earnedPoints / 100));
   const pointsToNextCoupon = 100 - (earnedPoints % 100 || 100);
   const levelProgress = Math.min(100, (earnedPoints % 1000) / 10);
 
@@ -142,16 +143,18 @@ export function RewardsScreen({
     if (!selectedReward || !canRedeemSelected) return;
 
     const code = makeCode(selectedReward);
+    const spentPoints = selectedReward.cost * 100;
     setRedeemed((current) => [{ id: code, reward: selectedReward, code }, ...current]);
     setActivity((current) => [
       {
         id: `redeemed-${code}`,
         label: `${selectedReward.title} redeemed`,
-        value: `-${selectedReward.cost} coupons`,
+        value: `-${spentPoints} pts`,
         tone: "spend",
       },
       ...current,
     ]);
+    onSpendPoints?.(spentPoints);
     setSelectedReward(null);
     setView("claimed");
   };

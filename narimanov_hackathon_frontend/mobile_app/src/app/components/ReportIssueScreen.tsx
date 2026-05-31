@@ -141,7 +141,7 @@ export function ReportIssueScreen({ initialPhotoFile, onBack, onSubmit }: Props)
         </div>
         {/* Step indicator */}
         <div className="flex gap-2">
-          {[1, 2, 3].map(s => (
+          {[1, 2].map(s => (
             <div
               key={s}
               className="h-1 flex-1 rounded-full transition-all"
@@ -150,7 +150,7 @@ export function ReportIssueScreen({ initialPhotoFile, onBack, onSubmit }: Props)
           ))}
         </div>
         <p className="text-white/70 text-xs mt-2" style={{ fontFamily: 'Inter, sans-serif' }}>
-          Step {step} of 3 — {step === 1 ? 'Photo' : step === 2 ? 'Category, Details & GPS' : 'Review & Submit'}
+          Step {Math.min(step, 2)} of 2 — {step === 1 ? 'Photo' : 'Category, Details & GPS'}
         </p>
       </div>
 
@@ -341,12 +341,12 @@ export function ReportIssueScreen({ initialPhotoFile, onBack, onSubmit }: Props)
                 Back
               </button>
               <button
-                onClick={() => setStep(3)}
-                disabled={!selectedCategory || !coordinates || !title.trim() || !description.trim()}
+                onClick={handleSubmit}
+                disabled={isSubmitting || !selectedCategory || !coordinates || !title.trim() || !description.trim()}
                 className="flex-1 py-4 rounded-2xl text-white"
-                style={{ background: selectedCategory && coordinates && title.trim() && description.trim() ? 'linear-gradient(135deg, #0B5CFF, #1a3a8f)' : '#D1D5DB', fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
+                style={{ background: selectedCategory && coordinates && title.trim() && description.trim() ? 'linear-gradient(135deg, #16A34A, #15803d)' : '#D1D5DB', fontFamily: 'Inter, sans-serif', fontWeight: 600, opacity: isSubmitting ? 0.75 : 1 }}
               >
-                Review
+                {isSubmitting ? 'Submitting...' : 'Submit Report'}
               </button>
             </div>
           </>
