@@ -14,13 +14,13 @@ interface Props {
 const categories: IssueCategory[] = ['road', 'lighting', 'trash', 'flooding', 'infrastructure', 'greenery', 'other'];
 
 const categoryRewards: Record<IssueCategory, number> = {
-  road: 80,
-  lighting: 55,
-  trash: 95,
-  flooding: 120,
-  infrastructure: 60,
-  greenery: 45,
-  other: 30,
+  road: 50,
+  lighting: 50,
+  trash: 50,
+  flooding: 50,
+  infrastructure: 50,
+  greenery: 50,
+  other: 50,
 };
 
 export function ReportIssueScreen({ initialPhotoFile, onBack, onSubmit }: Props) {

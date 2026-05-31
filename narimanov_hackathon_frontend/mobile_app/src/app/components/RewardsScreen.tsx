@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
@@ -91,14 +91,28 @@ const initialActivity: Activity[] = [
 
 const makeCode = (reward: Reward) => `${reward.tag.toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
 
-export function RewardsScreen({ onBack }: { onBack: () => void }) {
+export function RewardsScreen({
+  autoOpenDataPack = false,
+  demoAwardEarned = false,
+  earnedPoints = 750,
+  onAutoOpenHandled,
+  onBack,
+}: {
+  autoOpenDataPack?: boolean;
+  demoAwardEarned?: boolean;
+  earnedPoints?: number;
+  onAutoOpenHandled?: () => void;
+  onBack: () => void;
+}) {
   const [showHelp, setShowHelp] = useState(false);
   const [selectedReward, setSelectedReward] = useState<Reward | null>(null);
   const [redeemed, setRedeemed] = useState<Array<{ id: string; reward: Reward; code: string }>>([]);
-  const [activity, setActivity] = useState<Activity[]>(initialActivity);
+  const [activity, setActivity] = useState<Activity[]>(() => [
+    ...(demoAwardEarned ? [{ id: "demo-bench", label: "Broken bench report accepted", value: "+50 pts", tone: "gain" as const }] : []),
+    ...initialActivity,
+  ]);
   const [view, setView] = useState<"all" | "available" | "claimed">("all");
 
-  const earnedPoints = 750;
   const spentCoupons = redeemed.reduce((total, item) => total + item.reward.cost, 0);
   const coupons = Math.max(0, Math.floor(earnedPoints / 100) - spentCoupons);
   const pointsToNextCoupon = 100 - (earnedPoints % 100 || 100);
@@ -116,6 +130,13 @@ export function RewardsScreen({ onBack }: { onBack: () => void }) {
     : 0;
   const selectedInStock = selectedReward ? selectedReward.stock > activeRewardRedemptions : false;
   const canRedeemSelected = Boolean(selectedReward && selectedInStock && coupons >= selectedReward.cost);
+
+  useEffect(() => {
+    if (!autoOpenDataPack) return;
+    setView("available");
+    setSelectedReward(rewards.find((reward) => reward.id === "data") ?? null);
+    onAutoOpenHandled?.();
+  }, [autoOpenDataPack, onAutoOpenHandled]);
 
   const redeemReward = () => {
     if (!selectedReward || !canRedeemSelected) return;
