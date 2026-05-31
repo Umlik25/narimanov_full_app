@@ -180,6 +180,12 @@
   }
 }
 
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
 :root {
   --cg-safe-top: max(54px, env(safe-area-inset-top));
   --cg-safe-bottom: max(24px, env(safe-area-inset-bottom));

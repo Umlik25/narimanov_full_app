@@ -5,6 +5,8 @@ import "./styles/index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
+document.addEventListener("gesturestart", (event) => event.preventDefault());
+
 const isNativeShell = Boolean((window as any).Capacitor?.isNativePlatform?.());
 
 if (import.meta.env.PROD && !isNativeShell && 'serviceWorker' in navigator) {
