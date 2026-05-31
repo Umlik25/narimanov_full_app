@@ -37,7 +37,7 @@ export function UserReportDetails({ issue, onBack }: Props) {
       <div className="flex-1 overflow-y-auto">
         {/* Photo */}
         <div className="h-48 bg-gray-200">
-          <img src={issue.photo} alt={issue.title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1706660143732-c1d14701114e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600"; }} />
+          <img src={issue.photo} alt={issue.title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src = "/icon.png"; }} />
         </div>
 
         <div className="px-5 py-5">

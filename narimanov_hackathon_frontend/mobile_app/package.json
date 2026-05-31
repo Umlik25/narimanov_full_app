@@ -7,12 +7,13 @@
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview --host 0.0.0.0",
+    "preview:https": "npm run build && node scripts/serve-https.mjs",
     "typecheck": "tsc --noEmit",
     "cap:sync": "npm run build && cap sync",
     "android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
     "android": "npm run build && cap open android",
     "ios": "npm run build && cap open ios",
-    "api:generate": "openapi-ts"
+    "api:generate": "openapi-ts -f openapi-ts.config.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",

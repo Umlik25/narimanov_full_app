@@ -107,7 +107,7 @@ export function MyReportsScreen({ issues: liveIssues, onBack, onViewDetails, onM
             >
               <div className="flex">
                 <div className="w-24 h-24 flex-shrink-0 bg-gray-100">
-                  <img src={issue.photo} alt={issue.title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1706660143732-c1d14701114e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600"; }} />
+                  <img src={issue.photo} alt={issue.title} className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).src = "/icon.png"; }} />
                 </div>
                 <div className="flex-1 p-3">
                   <div className="flex items-center justify-between mb-1">

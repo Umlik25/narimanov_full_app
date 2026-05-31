@@ -12,6 +12,18 @@ npm run dev -- --host 0.0.0.0 --port 5174
 
 Open `http://localhost:5174`.
 
+## Run Over HTTPS
+
+```bash
+make https
+```
+
+This starts a local HTTPS server for the production build and generates a local CA in your temp directory if needed.
+
+On Android, install the CA certificate shown in the terminal first, then open the HTTPS URL printed by the server.
+
+If you are using Chrome on Android, this is the path that allows the app to be treated as a secure PWA origin.
+
 ## Connect Backend
 
 The app reads the FastAPI backend URL from `VITE_API_BASE_URL`.
@@ -23,11 +35,11 @@ cp .env.example .env
 Default:
 
 ```bash
-VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_API_BASE_URL=/backend
 VITE_USE_BACKEND=true
 ```
 
-If the backend is unavailable, the UI automatically falls back to local demo data so the presentation flow still works.
+When running the HTTPS PWA preview, `/backend` is proxied to `http://main-server:8989` so the browser can call the HTTP backend from the secure app origin.
 
 ## Generate API Client
 
@@ -37,7 +49,7 @@ The typed API client is generated from the backend OpenAPI schema with Hey API.
 npm run api:generate
 ```
 
-This expects the backend to be running at `http://127.0.0.1:8000`.
+This reads the OpenAPI schema from `http://main-server:8989/openapi.json`.
 
 ## Build Web Assets
 

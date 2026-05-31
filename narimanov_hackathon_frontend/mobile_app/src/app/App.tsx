@@ -19,6 +19,7 @@ import {
   createIssue,
   fetchBackendSnapshot,
   getMockSnapshot,
+  isBackendEnabled,
 } from "./api/backend";
 
 type Screen =
@@ -35,8 +36,6 @@ export default function App() {
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [showGlobalMenu, setShowGlobalMenu] = useState(false);
   const [issues, setIssues] = useState<Issue[]>(() => getMockSnapshot().issues);
-  const [dataSource, setDataSource] = useState<'backend' | 'mock'>('mock');
-  const [localIssuePhotos, setLocalIssuePhotos] = useState<Record<number, string>>({});
   const [pendingReportPhoto, setPendingReportPhoto] = useState<File | null>(null);
   const [rewardPoints, setRewardPoints] = useState(STARTING_REWARD_POINTS);
   const [rewardCelebration, setRewardCelebration] = useState<{ id: number; points: number } | null>(null);
@@ -48,15 +47,10 @@ export default function App() {
     setScreen('user_map');
   };
 
-  const applyLocalIssuePhotos = useCallback((items: Issue[], photos = localIssuePhotos) => {
-    return items.map(issue => issue.backendId && photos[issue.backendId] ? { ...issue, photo: photos[issue.backendId] } : issue);
-  }, [localIssuePhotos]);
-
   const refreshBackendData = useCallback(async () => {
     const snapshot = await fetchBackendSnapshot();
-    setIssues(applyLocalIssuePhotos(snapshot.issues));
-    setDataSource(snapshot.source);
-  }, [applyLocalIssuePhotos]);
+    setIssues(snapshot.issues);
+  }, []);
 
   useEffect(() => {
     refreshBackendData();
@@ -123,30 +117,23 @@ export default function App() {
     setRewardPoints((current) => Math.max(0, current - points));
   }, []);
 
-  const handleSubmitIssue = (draft: IssueDraft) => {
-    const optimisticIssue = createOptimisticIssue(draft);
-    setIssues(prev => [optimisticIssue, ...prev]);
-    setPendingReportPhoto(null);
-    setScreen('my_reports');
-    scheduleDemoApproval(optimisticIssue.id);
-
-    if (dataSource !== 'backend') {
+  const handleSubmitIssue = async (draft: IssueDraft) => {
+    if (!isBackendEnabled()) {
+      const optimisticIssue = createOptimisticIssue(draft);
+      setIssues(prev => [optimisticIssue, ...prev]);
+      setPendingReportPhoto(null);
+      setScreen('my_reports');
+      scheduleDemoApproval(optimisticIssue.id);
       return;
     }
 
-    createIssue(draft)
-      .then((created) => {
-        const nextLocalPhotos = created.backendId && draft.photoPreviewUrl
-          ? { ...localIssuePhotos, [created.backendId]: draft.photoPreviewUrl }
-          : localIssuePhotos;
-        if (nextLocalPhotos !== localIssuePhotos) setLocalIssuePhotos(nextLocalPhotos);
-        setIssues(prev => prev.map(item => item.id === optimisticIssue.id
-          ? { ...item, backendId: created.backendId }
-          : item));
-      })
-      .catch(error => {
-        console.warn('Issue submission failed, keeping optimistic demo report visible.', error);
-      });
+    const created = await createIssue(draft);
+    setIssues(prev => [created, ...prev.filter(item => item.backendId !== created.backendId)]);
+    setPendingReportPhoto(null);
+    setScreen('my_reports');
+    refreshBackendData().catch(error => {
+      console.warn('Issue created, but refreshing backend data failed.', error);
+    });
   };
 
   const renderMapShell = () => {

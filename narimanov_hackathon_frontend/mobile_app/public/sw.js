@@ -1,5 +1,5 @@
-const CACHE_NAME = 'city-grind-v3';
-const APP_SHELL = ['/manifest.webmanifest', '/icon.svg', '/icon.png'];
+const CACHE_NAME = 'city-grind-v6';
+const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -34,7 +34,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
         })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/')))
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/index.html') || caches.match('/')))
     );
     return;
   }
@@ -50,7 +50,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
         })
-        .catch(() => caches.match('/'));
+        .catch(() => caches.match('/index.html').then((cached) => cached || caches.match('/')));
     })
   );
 });
@@ -58,7 +58,8 @@ self.addEventListener('fetch', (event) => {
 function shouldBypassCache(url) {
   return (
     url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/backend/') ||
+    url.pathname.startsWith('/backend-asset') ||
+    url.pathname.startsWith('/backend') ||
     url.pathname.startsWith('/water-management/') ||
     url.pathname.startsWith('/@vite') ||
     url.pathname.startsWith('/src/') ||

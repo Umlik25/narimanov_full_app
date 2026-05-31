@@ -181,7 +181,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       '/backend': {
-        target: process.env.VITE_BACKEND_PROXY_TARGET || 'http://127.0.0.1:8000',
+        target: process.env.VITE_BACKEND_PROXY_TARGET || 'http://main-server:8989',
         changeOrigin: true,
         rewrite: path => path.replace(/^\/backend/, ''),
       },

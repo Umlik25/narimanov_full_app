@@ -30,6 +30,7 @@ export function ReportIssueScreen({ initialPhotoFile, onBack, onSubmit }: Props)
   const [description, setDescription] = useState('');
   const [photoAdded, setPhotoAdded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [isLocating, setIsLocating] = useState(true);
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState('');
@@ -107,18 +108,22 @@ export function ReportIssueScreen({ initialPhotoFile, onBack, onSubmit }: Props)
   const handleSubmit = async () => {
     if (!selectedCategory || !coordinates || !title.trim() || !description.trim() || isSubmitting) return;
     setIsSubmitting(true);
+    setSubmitError('');
     try {
       await onSubmit({
-      category: selectedCategory,
-      description: description.trim(),
-      location: `Latitude ${coordinates.lat}, Longitude ${coordinates.lng}`,
-      latitude: coordinates.lat,
-      longitude: coordinates.lng,
-      priority: selectedCategory === 'flooding' ? 'critical' : selectedCategory === 'road' || selectedCategory === 'trash' ? 'high' : 'medium',
-      title: title.trim(),
-      photoFile: photoFile || undefined,
-      photoPreviewUrl: photoPreviewUrl || undefined,
+        category: selectedCategory,
+        description: description.trim(),
+        location: `Latitude ${coordinates.lat}, Longitude ${coordinates.lng}`,
+        latitude: coordinates.lat,
+        longitude: coordinates.lng,
+        priority: selectedCategory === 'flooding' ? 'critical' : selectedCategory === 'road' || selectedCategory === 'trash' ? 'high' : 'medium',
+        title: title.trim(),
+        photoFile: photoFile || undefined,
+        photoPreviewUrl: photoPreviewUrl || undefined,
       });
+    } catch (error) {
+      console.warn('Issue submission failed.', error);
+      setSubmitError('Could not submit this report to the backend. Check the server connection and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -319,6 +324,14 @@ export function ReportIssueScreen({ initialPhotoFile, onBack, onSubmit }: Props)
               </div>
             )}
             {!locationError && <div className="mb-5" />}
+
+            {submitError && (
+              <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+                <p className="text-red-600 text-xs" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
+                  {submitError}
+                </p>
+              </div>
+            )}
 
             {/* Description */}
             <p className="text-[#08122D] text-sm mb-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>

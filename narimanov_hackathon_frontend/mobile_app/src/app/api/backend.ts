@@ -1,6 +1,5 @@
 import {
   AIDetection,
-  ISSUE_PHOTOS,
   Issue,
   IssueCategory,
   IssuePriority,
@@ -9,7 +8,7 @@ import {
 import {
   createIssueIssuesPost,
   getIssueDetailsIssuesIssueIdDetailsGet,
-  listIssuesForModerationIssuesModerationGet,
+  listIssuesIssuesGet,
   uploadIssueImagesIssuesIssueIdImagesPost,
 } from "./generated";
 import { client } from "./generated/client.gen";
@@ -42,10 +41,11 @@ export interface BackendSnapshot {
   source: "backend" | "mock";
 }
 
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
+const DEFAULT_API_BASE_URL = "/backend";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/+$/, "");
 const BACKEND_ENABLED = (import.meta.env.VITE_USE_BACKEND ?? "true") !== "false";
 const NARIMANOV_COORDS = { lat: 40.4093, lng: 49.8671 };
+const BACKEND_IMAGE_PLACEHOLDER = "/icon.png";
 const DATA_OPTIONS = { throwOnError: true as const, responseStyle: "data" as const };
 
 client.setConfig({
@@ -90,6 +90,10 @@ export function getApiBaseUrl() {
   return API_BASE_URL;
 }
 
+export function isBackendEnabled() {
+  return BACKEND_ENABLED;
+}
+
 export function getMockSnapshot(): BackendSnapshot {
   return {
     issues: [],
@@ -102,15 +106,15 @@ export async function fetchBackendSnapshot(): Promise<BackendSnapshot> {
   if (!BACKEND_ENABLED) return getMockSnapshot();
 
   try {
-    const moderation = await listIssuesForModerationIssuesModerationGet({
+    const issuesResponse = await listIssuesIssuesGet({
       ...DATA_OPTIONS,
       query: { limit: 100, offset: 0 },
     });
-    const moderationData = unwrap<IssueListResponse>(moderation);
+    const issuesData = unwrap<IssueListResponse>(issuesResponse);
     const details = await Promise.all(
-      moderationData.items.map(async (issue: IssueResponse) => getIssueDetails(issue.id).catch(() => issue)),
+      issuesData.items.map(async (issue: IssueResponse) => getIssueDetails(issue.id).catch(() => issue)),
     );
-    const issues = details.map(issue => mapBackendIssue(issue, issue.id));
+    const issues = details.map(issue => mapBackendIssue(issue));
 
     return {
       issues,
@@ -158,10 +162,7 @@ export async function createIssue(draft: IssueDraft): Promise<Issue> {
     }
   }
 
-  const mapped = mapBackendIssue(await getIssueDetails(issue.id).catch(() => issue));
-  return draft.photoPreviewUrl && ISSUE_PHOTOS.includes(mapped.photo)
-    ? { ...mapped, photo: draft.photoPreviewUrl }
-    : mapped;
+  return mapBackendIssue(await getIssueDetails(issue.id).catch(() => issue));
 }
 
 async function getIssueDetails(issueId: number) {
@@ -178,11 +179,12 @@ function unwrap<T>(value: T | { data: T; request?: Request; response?: Response 
   return value as T;
 }
 
-function mapBackendIssue(issue: ApiIssue, index = issue.id): Issue {
+function mapBackendIssue(issue: ApiIssue): Issue {
   const category = categoryFromBackend[issue.category] || "other";
   const priority = (issue.severity || "medium") as IssuePriority;
   const status = mapStatus(issue);
-  const photo = issue.images?.[0]?.url || ISSUE_PHOTOS[Math.abs(index) % ISSUE_PHOTOS.length];
+  const backendPhoto = issue.images?.[0]?.url || issue.primary_image_url;
+  const photo = backendPhoto ? resolveBackendAssetUrl(backendPhoto) : BACKEND_IMAGE_PLACEHOLDER;
   const source = issue.source === "ai_detection" || issue.source === "street_camera" ? "ai" : "user";
   const reportedAt = formatDateTime(issue.created_at);
 
@@ -223,9 +225,16 @@ function mapStatus(issue: ApiIssue): IssueStatus {
   }
   if (issue.status === "resolved") return "resolved";
   if (issue.deadline && new Date(issue.deadline).getTime() < Date.now()) return "overdue";
-  if (issue.status === "in_progress") return "in_progress";
   if (issue.status === "assigned") return "assigned";
   return "new";
+}
+
+function resolveBackendAssetUrl(value: string) {
+  if (/^https?:/i.test(value)) return `/backend-asset?url=${encodeURIComponent(value)}`;
+  if (/^(blob:|data:)/i.test(value)) return value;
+  if (value.startsWith('/backend/')) return value;
+  if (value.startsWith('/')) return `${API_BASE_URL}${value}`;
+  return `${API_BASE_URL}/${value}`;
 }
 
 function buildAIDetections(issues: Issue[], useFallback = false): AIDetection[] {

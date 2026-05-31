@@ -72,7 +72,7 @@ export function IssueBottomSheet({ issue, onClose, onViewDetails }: Props) {
             src={issue.photo}
             alt={issue.title}
             className="w-full h-full object-cover"
-            onError={e => { (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1706660143732-c1d14701114e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600"; }}
+            onError={e => { (e.target as HTMLImageElement).src = "/icon.png"; }}
           />
         </motion.div>
 
